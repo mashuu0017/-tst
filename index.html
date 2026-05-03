@@ -1,918 +1,880 @@
 <!DOCTYPE html>
+
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Scenario</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>野球拳</title>
 <style>
-body {
-  margin: 0;
-  background: #111;
-  color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+width: 100%; height: 100%;
+overflow: hidden;
+background: #0a0a0a;
 }
 
-/* 全体中央寄せ */
+/* ===== 横画面強制メッセージ ===== */
+#rotate-msg {
+display: none;
+position: fixed;
+inset: 0;
+background: #0a0a0a;
+color: #fff;
+font-size: 1.2rem;
+align-items: center;
+justify-content: center;
+flex-direction: column;
+gap: 1rem;
+z-index: 9999;
+font-family: “Hiragino Kaku Gothic ProN”, sans-serif;
+text-align: center;
+}
+#rotate-msg .icon { font-size: 3rem; }
+
+@media (orientation: portrait) {
+#rotate-msg { display: flex; }
+}
+
+/* ===== メインアプリ（横画面のみ表示） ===== */
 #app {
-  max-width: 480px;
-  margin: 0 auto;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #222;
+width: 100vw;
+height: 100vh;
+position: relative;
+font-family: “Hiragino Kaku Gothic ProN”, “Noto Sans JP”, sans-serif;
 }
 
-/* チャットエリア */
-#chat {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
+@media (orientation: portrait) {
+#app { display: none; }
 }
 
-/* 吹き出し共通 */
-.message {
-  max-width: 75%;
-  padding: 12px 14px;
-  margin: 6px 0;
-  border-radius: 16px;
-  font-size: 17px;
-  line-height: 1.4;
-  word-break: break-word;
+/* ===== 画面共通 ===== */
+.screen {
+position: absolute;
+inset: 0;
+display: none;
+}
+.screen.active { display: flex; }
+
+/* ===== タイトル画面 ===== */
+#screen-title {
+flex-direction: column;
+align-items: center;
+justify-content: flex-end;
+padding-bottom: 6vh;
 }
 
-/* 自分 */
-.me {
-  align-self: flex-end;
-  background: #0b93f6;
-  border-bottom-right-radius: 4px;
+#title-bg {
+position: absolute;
+inset: 0;
+width: 100%;
+height: 100%;
+object-fit: cover;
+object-position: center top;
 }
 
-/* 相手 */
-.other {
-  align-self: flex-start;
-  background: #444;
-  border-bottom-left-radius: 4px;
+#btn-start {
+position: relative;
+z-index: 1;
+padding: 0.9em 3.5em;
+font-size: clamp(1rem, 2.5vw, 1.4rem);
+font-family: “Hiragino Kaku Gothic ProN”, sans-serif;
+letter-spacing: 0.4em;
+background: rgba(10,10,10,0.75);
+color: #f5d98a;
+border: 2px solid #f5d98a;
+cursor: pointer;
+transition: background 0.2s, color 0.2s;
+clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+#btn-start:hover {
+background: #f5d98a;
+color: #0a0a0a;
 }
 
-/* 選択肢エリア */
-#choices {
-  padding: 10px;
-  border-top: 1px solid #333;
-  background: #111;
+/* ===== ゲーム画面 ===== */
+#screen-game {
+background: #111;
+flex-direction: row;
 }
 
-.choice {
-  display: block;
-  width: 100%;
-  padding: 14px;
-  margin: 6px 0;
-  font-size: 17px;
-  background: #333;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-}
-.choice:active {
-  background: #555;
-}
-
-.system {
-  align-self: center;
-  background: transparent;
-  color: #aaa;
-  font-size: 17px;
-  margin: 10px 0;
+/* 左カラム：相手キャラ */
+#col-enemy {
+width: 42%;
+height: 100%;
+position: relative;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: flex-end;
+background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+border-right: 1px solid #2a2a2a;
+overflow: hidden;
 }
 
+/* 敵キャラ画像 */
+#enemy-img-wrap {
+position: absolute;
+bottom: 0;
+left: 50%;
+transform: translateX(-50%);
+width: 100%;
+height: 100%;
+display: flex;
+align-items: flex-end;
+justify-content: center;
+}
+
+#enemy-img {
+max-height: 96%;
+max-width: 100%;
+object-fit: contain;
+object-position: bottom center;
+transition: opacity 0.4s ease;
+filter: drop-shadow(0 0 20px rgba(77,184,168,0.25));
+}
+
+/* 脱衣エフェクト */
+#strip-overlay {
+position: absolute;
+inset: 0;
+background: rgba(255,255,255,0);
+pointer-events: none;
+transition: background 0.1s;
+z-index: 5;
+}
+#strip-overlay.flash {
+animation: stripFlash 0.5s ease forwards;
+}
+@keyframes stripFlash {
+0%   { background: rgba(255,220,100,0.5); }
+100% { background: rgba(255,255,255,0); }
+}
+
+/* 敵のハート（左上） */
+#enemy-hearts-wrap {
+position: absolute;
+top: 10px;
+left: 10px;
+z-index: 10;
+display: flex;
+gap: 4px;
+background: rgba(0,0,0,0.5);
+padding: 5px 10px;
+border-radius: 20px;
+border: 1px solid #333;
+}
+
+/* 敵セリフ */
+#enemy-speech-wrap {
+position: absolute;
+bottom: 12px;
+left: 50%;
+transform: translateX(-50%);
+z-index: 10;
+width: 90%;
+background: rgba(0,0,0,0.7);
+border: 1px solid #444;
+border-radius: 8px;
+padding: 6px 12px;
+font-size: clamp(0.7rem, 1.4vw, 0.9rem);
+color: #f0ece4;
+text-align: center;
+min-height: 2.2em;
+display: flex;
+align-items: center;
+justify-content: center;
+backdrop-filter: blur(4px);
+}
+
+/* 右カラム：ゲームコントロール */
+#col-ctrl {
+flex: 1;
+height: 100%;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: space-between;
+padding: 12px 16px;
+background: #0f0f18;
+gap: 8px;
+}
+
+/* プレイヤーハート（上部） */
+#player-status {
+width: 100%;
+display: flex;
+align-items: center;
+justify-content: space-between;
+}
+
+#player-hearts-wrap {
+display: flex;
+gap: 3px;
+background: rgba(0,0,0,0.4);
+padding: 5px 10px;
+border-radius: 20px;
+border: 1px solid #333;
+}
+
+#round-label {
+font-size: clamp(0.65rem, 1.2vw, 0.8rem);
+color: rgba(77,184,168,0.8);
+letter-spacing: 0.2em;
+}
+
+.heart {
+font-size: clamp(0.9rem, 1.8vw, 1.1rem);
+color: #e07070;
+transition: all 0.3s;
+}
+.heart.lost { opacity: 0.15; filter: grayscale(1); transform: scale(0.8); }
+
+/* 結果エリア */
+#result-area {
+flex: 1;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+gap: 6px;
+min-height: 0;
+}
+
+/* 手の表示 */
+#hands-display {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+opacity: 0;
+transition: opacity 0.3s;
+}
+#hands-display.show { opacity: 1; }
+
+.hand-img-show {
+width: clamp(40px, 7vw, 70px);
+height: clamp(40px, 7vw, 70px);
+object-fit: contain;
+}
+
+.vs-text {
+font-size: clamp(0.7rem, 1.3vw, 0.9rem);
+color: #555;
+}
+
+/* 結果テキスト */
+#result-text {
+font-size: clamp(1.4rem, 3.5vw, 2.2rem);
+font-weight: bold;
+letter-spacing: 0.15em;
+opacity: 0;
+transform: scale(0.5);
+transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+#result-text.show { opacity: 1; transform: scale(1); }
+#result-text.win  { color: #4db8a8; text-shadow: 0 0 20px rgba(77,184,168,0.6); }
+#result-text.lose { color: #e07070; text-shadow: 0 0 20px rgba(224,112,112,0.5); }
+#result-text.draw { color: #888; }
+
+/* じゃんけんボタン */
+#janken-area {
+width: 100%;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 8px;
+}
+
+#janken-label {
+font-size: clamp(0.6rem, 1.1vw, 0.75rem);
+color: #555;
+letter-spacing: 0.4em;
+}
+
+#hand-buttons {
+display: flex;
+gap: clamp(8px, 2vw, 20px);
+}
+
+.hand-btn {
+width: clamp(60px, 11vw, 100px);
+height: clamp(60px, 11vw, 100px);
+background: rgba(255,255,255,0.03);
+border: 1.5px solid #333;
+border-radius: 50%;
+cursor: pointer;
+transition: all 0.2s;
+padding: 6px;
+display: flex;
+align-items: center;
+justify-content: center;
+overflow: hidden;
+}
+.hand-btn img {
+width: 100%;
+height: 100%;
+object-fit: contain;
+}
+.hand-btn:hover:not(:disabled) {
+border-color: #4db8a8;
+transform: scale(1.1) translateY(-3px);
+box-shadow: 0 6px 20px rgba(77,184,168,0.3);
+background: rgba(77,184,168,0.05);
+}
+.hand-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ===== プレイヤー負けモーダル ===== */
+#modal-lose {
+position: fixed;
+inset: 0;
+z-index: 100;
+background: rgba(0,0,0,0.88);
+display: none;
+align-items: center;
+justify-content: center;
+animation: fadeIn 0.3s ease;
+}
+#modal-lose.active { display: flex; }
+
+@keyframes fadeIn {
+from { opacity: 0; }
+to   { opacity: 1; }
+}
+
+.modal-inner {
+display: flex;
+flex-direction: row;
+align-items: center;
+gap: 24px;
+max-width: 90vw;
+max-height: 90vh;
+}
+
+#player-img-box {
+height: 80vh;
+max-height: 80vh;
+aspect-ratio: auto;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+
+#player-img {
+max-height: 80vh;
+max-width: 50vw;
+object-fit: contain;
+border-radius: 8px;
+display: block;
+}
+
+.modal-right {
+display: flex;
+flex-direction: column;
+gap: 16px;
+max-width: 260px;
+}
+
+#modal-serif {
+font-size: clamp(0.85rem, 1.6vw, 1rem);
+color: #f0ece4;
+line-height: 1.8;
+padding: 12px 16px;
+background: rgba(255,255,255,0.04);
+border-left: 2px solid #4db8a8;
+border-radius: 4px;
+}
+
+#btn-continue {
+padding: 0.7em 2em;
+background: transparent;
+border: 1.5px solid #555;
+color: #aaa;
+font-family: inherit;
+font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+letter-spacing: 0.3em;
+cursor: pointer;
+transition: all 0.2s;
+border-radius: 4px;
+}
+#btn-continue:hover { border-color: #4db8a8; color: #4db8a8; }
+
+/* ===== エンディング画面 ===== */
+#screen-ending {
+flex-direction: row;
+align-items: center;
+justify-content: center;
+gap: 32px;
+background: #0a0a0a;
+padding: 20px;
+}
+
+#ending-img-box {
+height: 85vh;
+display: flex;
+align-items: center;
+}
+
+#ending-img {
+max-height: 85vh;
+max-width: 50vw;
+object-fit: contain;
+border-radius: 8px;
+display: block;
+}
+
+.ending-right {
+display: flex;
+flex-direction: column;
+gap: 16px;
+max-width: 340px;
+flex-shrink: 0;
+}
+
+#ending-title {
+font-size: clamp(1.2rem, 2.8vw, 2rem);
+letter-spacing: 0.25em;
+font-weight: bold;
+}
+#ending-title.player-win  { color: #4db8a8; text-shadow: 0 0 20px rgba(77,184,168,0.5); }
+#ending-title.player-lose { color: #e07070; text-shadow: 0 0 20px rgba(224,112,112,0.4); }
+
+#ending-dialogue {
+display: flex;
+flex-direction: column;
+gap: 10px;
+max-height: 50vh;
+overflow-y: auto;
+padding-right: 4px;
+}
+#ending-dialogue::-webkit-scrollbar { width: 3px; }
+#ending-dialogue::-webkit-scrollbar-thumb { background: #333; }
+
+.dlg-line {
+font-size: clamp(0.8rem, 1.5vw, 0.95rem);
+line-height: 1.7;
+color: #ccc;
+opacity: 0;
+transform: translateY(6px);
+transition: all 0.4s ease;
+}
+.dlg-line.show { opacity: 1; transform: translateY(0); }
+.dlg-line .dlg-speaker { color: #4db8a8; margin-right: 0.4em; }
+.dlg-line.me .dlg-speaker { color: #c8a0a0; }
+
+#btn-retry {
+padding: 0.8em 2.5em;
+background: transparent;
+border: 2px solid #4db8a8;
+color: #4db8a8;
+font-family: inherit;
+font-size: clamp(0.85rem, 1.5vw, 1rem);
+letter-spacing: 0.3em;
+cursor: pointer;
+transition: all 0.25s;
+border-radius: 4px;
+opacity: 0;
+animation: fadeIn 0.5s ease 2.5s forwards;
+}
+#btn-retry:hover { background: rgba(77,184,168,0.1); box-shadow: 0 0 15px rgba(77,184,168,0.3); }
+
+/* シェイク */
+@keyframes shake {
+0%,100% { transform: translateX(0); }
+20% { transform: translateX(-8px); }
+40% { transform: translateX(8px); }
+60% { transform: translateX(-5px); }
+80% { transform: translateX(5px); }
+}
+.shake { animation: shake 0.45s ease; }
 </style>
-</head>
 
+</head>
 <body>
 
+<!-- 縦画面警告 -->
+
+<div id="rotate-msg">
+  <div class="icon">📱↔️</div>
+  <div>横画面でプレイしてください</div>
+</div>
+
 <div id="app">
-  <div id="chat"></div>
-  <div id="choices"></div>
+
+  <!-- タイトル画面 -->
+
+  <div id="screen-title" class="screen active">
+    <img id="title-bg" src="title.WEBP" alt="title">
+    <button id="btn-start" onclick="startGame()">は じ め る</button>
+  </div>
+
+  <!-- ゲーム画面 -->
+
+  <div id="screen-game" class="screen">
+
+```
+<!-- 左：相手キャラ -->
+<div id="col-enemy">
+  <div id="enemy-hearts-wrap"></div>
+  <div id="strip-overlay"></div>
+  <div id="enemy-img-wrap">
+    <img id="enemy-img" src="enemy_0.WEBP" alt="enemy">
+  </div>
+  <div id="enemy-speech-wrap">
+    <span id="enemy-speech">「……何？　やる気なの？」</span>
+  </div>
+</div>
+
+<!-- 右：コントロール -->
+<div id="col-ctrl">
+
+  <div id="player-status">
+    <div id="player-hearts-wrap"></div>
+    <div id="round-label">ROUND 1</div>
+  </div>
+
+  <div id="result-area">
+    <div id="hands-display">
+      <img class="hand-img-show" id="player-hand-show" src="" alt="">
+      <span class="vs-text">vs</span>
+      <img class="hand-img-show" id="enemy-hand-show" src="" alt="">
+    </div>
+    <div id="result-text"></div>
+  </div>
+
+  <div id="janken-area">
+    <div id="janken-label">て を え ら べ</div>
+    <div id="hand-buttons">
+      <button class="hand-btn" id="btn-gu"    onclick="play('gu')">
+        <img src="ク_ー.PNG" alt="グー">
+      </button>
+      <button class="hand-btn" id="btn-choki" onclick="play('choki')">
+        <img src="チョキ.PNG" alt="チョキ">
+      </button>
+      <button class="hand-btn" id="btn-pa"    onclick="play('pa')">
+        <img src="ハ_ー.PNG" alt="パー">
+      </button>
+    </div>
+  </div>
+
+</div>
+```
+
+  </div>
+
+  <!-- エンディング画面 -->
+
+  <div id="screen-ending" class="screen">
+    <div id="ending-img-box">
+      <img id="ending-img" src="" alt="ending">
+    </div>
+    <div class="ending-right">
+      <div id="ending-title"></div>
+      <div id="ending-dialogue"></div>
+      <button id="btn-retry" onclick="resetGame()">も う い ち ど</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- プレイヤー負けモーダル -->
+
+<div id="modal-lose">
+  <div class="modal-inner">
+    <div id="player-img-box">
+      <img id="player-img" src="" alt="player">
+    </div>
+    <div class="modal-right">
+      <div id="modal-serif"></div>
+      <button id="btn-continue" onclick="closeModal()">つ づ け る</button>
+    </div>
+  </div>
 </div>
 
 <script>
-const chat = document.getElementById("chat");
-const choicesEl = document.getElementById("choices");
+// ===== 設定 =====
+const PLAYER_MAX_LOSES = 6;
+const ENEMY_MAX_LOSES  = 5;
 
-let ntrAffinity = 0;
+// 手の画像
+const HAND_IMGS = {
+  gu:    "ク_ー.PNG",
+  choki: "チョキ.PNG",
+  pa:    "ハ_ー.PNG",
+};
+const HAND_KEYS = ["gu","choki","pa"];
 
-const scenario = {
+// 相手キャラ画像（段階別）
+const ENEMY_IMGS = [
+  "enemy_0.WEBP",
+  "enemy_1.WEBP",
+  "enemy_2.JPG",
+  "enemy_3.WEBP",
+  "enemy_4.jpg",
+  "enemy_5.WEBP",
+];
 
-start: {
-messages: [
-{ speaker:"other", text:"お疲れさまでした。", icon:"icon.png" },
-{ delay:800 },
-{ speaker:"me", text:"お疲れ。今日のパフォーマンス良かったよ。" },
-{ delay:800 },
-{ speaker:"other", text:"本当ですか？ちょっと不安で…" },
-{ delay:1000 },
-{ speaker:"me", text:"問題ない。ちゃんと届いてた。" },
-{ delay:800 },
-{ speaker:"other", text:"…よかった。" }
-],
-choices: [
-{ label:"少し踏み込む", next:"choice1a" },
-{ label:"仕事の話を続ける", next:"choice1b" }
-]
-},
+// プレイヤー負け画像
+const PLAYER_LOSE_IMGS = [
+  "player_lose_1.JPG",
+  "player_lose_2.WEBP",
+  "player_lose_3.WEBP",
+  "player_lose_4.JPG",
+  "player_lose_5.WEBP",
+  "player_lose_6.WEBP",
+];
 
-choice1a: {
-messages: [
-{ speaker:"me", text:"正直、今日はいつも以上に目で追ってた。" },
-{ delay:1000 },
-{ speaker:"other", text:"え…それ、どういう意味ですか？" }
-],
-choices: [
-{ label:"好意をほのめかす", next:"choice2a" },
-{ label:"誤魔化す", next:"choice2b" }
-]
-},
-
-choice1b: {
-messages: [
-{ speaker:"me", text:"次のステージ構成、少し変えるかも。" },
-{ delay:800 },
-{ speaker:"other", text:"はい、分かりました。" },
-{ delay:1200 },
-{ speaker:"other", text:"…それだけですか？" }
-],
-choices: [
-{ label:"話題を変える", next:"choice2b" },
-{ label:"気持ちを言いかける", next:"choice2a" }
-]
-},
-
-choice2a: {
-messages: [
-{ speaker:"me", text:"仕事抜きで話したいことがある。" },
-{ delay:1200 },
-{ speaker:"other", text:"……" },
-{ delay:1500 },
-{ speaker:"other", text:"プロデューサーですよね、あなたは。" },
-{ delay:1000 },
-{ speaker:"other", text:"そういうの、ダメです。" }
-],
-choices: [
-{ label:"それでも伝える", next:"choice3a" },
-{ label:"引く", next:"bad_end" }
-]
-},
-
-choice2b: {
-messages: [
-{ speaker:"me", text:"いや、なんでもない。" },
-{ delay:1200 },
-{ speaker:"other", text:"……そうですか。" },
-{ delay:1500 },
-{ speaker:"other", text:"私にはファンの方がいますから。" }
-],
-choices: [
-{ label:"正直に言う", next:"choice2a" },
-{ label:"このまま終わる", next:"bad_end" }
-]
-},
-
-choice3a: {
-messages: [
-{ speaker:"me", text:"立場は分かってる。でも、それでも好きだ。" },
-{ delay:1500 },
-{ speaker:"other", text:"……ずるいです。" },
-{ delay:1200 },
-{ speaker:"other", text:"そんなの、断りにくいじゃないですか。" }
-],
-choices: [
-{ label:"責任は取ると言う", 
-playerText: "責任は取る",
-next:"pending" },
-{ label:"はぐらかす", 
-playerText: "ごめん、忘れてくれ",
-next:"bad_end" }
-]
-},
-
-pending: {
-messages: [
-{ speaker:"other", text:"…本気、なんですよね。" },
-{ delay:1500 },
-{ speaker:"me", text:"ああ。" },
-{ delay:2000 },
-{ speaker:"other", text:"……すぐには、答え出せません。" },
-{ delay:1500 },
-{ speaker:"other", text:"少し時間、ください。" }
-],
-choices: [
-{ label:"次へ", next:"after_days" }
-]
-},
-
-after_days: {
-messages: [
-   { system: true, text: "数日後" },
-   
-{ speaker:"other", text:"お疲れさまです。" },
-{ delay:800 },
-{ speaker:"me", text:"休みの日に連絡珍しいな。" },
-{ delay:1000 },
-{ speaker:"other", text:"今、カフェで本読んでて…" },
-{ delay:1200 },
-{ speaker:"other", text:"ちょっとだけ、あなたのこと考えてました。" }
-],
-choices: [
-{ label:"続ける", next:"after2" }
-]
-},
-
-after2: {
-messages: [
-{ speaker:"me", text:"この前の話、覚えてるか？" },
-{ delay:1500 },
-{ speaker:"other", text:"……はい。" },
-{ delay:1500 },
-{ speaker:"other", text:"嬉しかっです…でも…。" }
-],
-choices: [
-{ label:"もう一度告白する", next:"hear_answer" },
-{ label:"身を引く", 
-playerText: "ごめん、忘れてくれ",
-next:"ntr_1" }
-]
-},
-
-hear_answer: {
-messages: [
-{ speaker:"me", text:"諦められない。" },
-{ delay:1500 },
-{ speaker:"other", text:"……怖いですけど…" },
-{ delay:1500 },
-{ speaker:"other", text:"それでも、一緒にいたいです。" }
-],
-choices: [
-{ label:"次へ", next:"true_start" }
-]
-},
-
-true_start: {
-messages: [
-{ speaker:"other", text:"…秘密ですよ？" },
-{ delay:1200 },
-{ speaker:"me", text:"ああ…分かってる。" },
-{ delay:1200 },
-{ speaker:"other", text:"じゃあ…宜しくお願いします。" }
-],
-choices: [
-{ label:"続く", next:"after_true_start" }
-]
-},
-
-after_true_start: {
-messages: [
-{ system: true, text: "1週間後" },
-
-{ speaker:"other", text:"今日は迎えに来てくれるんですよね?" },
-{ delay:1000 },
-{ speaker:"me", text:"ああ。終わったら連絡してくれ。" },
-{ delay:1000 },
-{ speaker:"other", text:"…はい♡" },
-{ delay:1500 },
-{ speaker:"other", text:"…会えると思うと、ドキドキします。" }
-],
-choices: [
-{ label:"次へ", next:"after_pickup" }
-]
-},
-
-
-after_pickup: {
-  messages: [     
-    { delay:1200 },
-    { speaker:"other", text:"…家まで送ってくれてありがとうございました。" },
-    { delay:1200 },
-    { speaker:"me", text:"ああ" },
-    { delay:1200 },
-    { speaker:"other", text:"…やっぱりこんな関係、ダメって分かってるのに…" },
-    { delay:1200 },
-    { speaker:"me", text:"ならやめるか？" },
-    { delay:1500 },
-    { speaker:"other", text:"……それは、嫌です。" },
-    { delay:1500 },
-    { speaker:"other", text:"ちゃんとダメって分かってるのに…" },
-    { delay:1200 },
-    { speaker:"other", text:"プロデューサーと話してると、忘れちゃうんです。" }
-  ],
-  choices: [
-    { label:"距離を詰める", next:"true_a_close" },
-    { label:"冷静になる", next:"true_a_cool" }
-  ]
-},
-
-true_a_close: {
-  messages: [
-    { speaker:"me", text:"じゃあ、もう少し恋人っぽいことするか" },
-    { delay:1500 },
-    { speaker:"other", text:"…え…" },
-    { delay:1200 },
-    { speaker:"me", text:"次会った時、少しだけ時間くれ。" },
-    { delay:1500 },
-    { speaker:"other", text:"それって…" },
-    { delay:1200 },
-    { speaker:"other", text:"デート、みたいな…" },
-    { delay:1500 },
-    { speaker:"me", text:"ああ…人目つかない場所ならダメかな？" },
-    { delay:1500 },
-    { speaker:"other", text:"……ずるいです。" },
-    { delay:1200 },
-    { speaker:"other", text:"そんな言い方されたら…" },
-    { delay:1500 },
-    { speaker:"other", text:"断れないじゃないですか。" }
-  ],
-  choices: [
-    { label:"約束する", next:"true_a_promise" }
-  ]
-},
-
-
-true_a_cool: {
-  messages: [
-    { speaker:"me", text:"いや、やっぱり距離は守るべきだ。" },
-    { delay:1500 },
-    { speaker:"other", text:"……そう、ですよね。" },
-    { delay:1200 },
-    { speaker:"other", text:"それが普通ですもんね。" },
-    { delay:1500 },
-    { speaker:"other", text:"…でも、少しくらい…" },
-    { delay:1500 },
-    { speaker:"other", text:"期待してもいいですか？" }
-  ],
-  choices: [
-    { label:"少しだけ許す", next:"true_a_soft" },
-    { label:"完全に線引きする", next:"bad_end" }
-  ]
-},
-
-true_a_promise: {
-  messages: [
-    { speaker:"me", text:"約束する。無理はさせない。" },
-    { delay:1500 },
-    { speaker:"other", text:"……はい。" },
-    { delay:1200 },
-    { speaker:"other", text:"その代わり…" },
-    { delay:1200 },
-    { speaker:"other", text:"ちゃんと、最後まで責任取ってくださいね。" }
-  ],
-  choices: [
-    { label:"続く", next:"true_a_date_flag" }
-  ]
-},
-
-true_a_soft: {
-  messages: [
-    { speaker:"me", text:"少しだけならな。" },
-    { delay:1500 },
-    { speaker:"other", text:"…ほんとに、少しですよ？" },
-    { delay:1200 },
-    { speaker:"other", text:"それ以上は…" },
-    { delay:1200 },
-    { speaker:"other", text:"自分で止められる自信ないので。" }
-  ],
-  choices: [
-    { label:"続く", next:"true_a_date_flag" }
-  ]
-},
-
-true_a_date_flag: {
-  messages: [
-    { delay:1000 },
-    { system: true, text:"数日後" },
-    { delay:1000 },
-    { speaker:"other", text:"今日の件、覚えてますよね…" },
-    { delay:1200 },
-    { speaker:"me", text:"ああ。" },
-    { delay:1200 },
-    { speaker:"other", text:"場所、ちゃんと選びましたか？" },
-    { delay:1500 },
-    { speaker:"other", text:"絶対に…誰にも見られないところで…" }
-  ],
-  choices: [
-    { label:"場所を伝える", next:"after_dete" }
-  ]
-},
-
-
-after_dete: {
-  messages: [
-{ speaker:"me", text:"周りに気づかれないようにしろよ。" },
-{ delay:1200 },
-{ speaker:"other", text:"分かってます。でも…" },
-{ delay:1200 },
-{ speaker:"other", text:"ちょっとドキドキします。" },
-{ delay:1200 },
-{ speaker:"me", text:"ちゃんと変装しろよ…" },
-{ delay:1200 },
-{ speaker:"other", text:"ふふ。" }
-],
-choices: [
-{ label:"次へ", next:"daily_love" }
-]
-},
-
-
-daily_love: {
-  messages: [
-   { delay:1500 },
-  { system: true, text:"次の日" },
- { speaker:"other", text:"昨日は楽しかったです…" },
-{ delay:1200 },
-{ speaker:"me", text:"どうした？" },
-{ delay:1200 },
-{ speaker:"other", text:"プロデューサーさんにだけ分かるサイン送っても良いですか？" },
-{ delay:1500 },
-{ speaker:"me", text:"…バレるだろ。" },
-{ delay:1200 },
-{ speaker:"other", text:"私から目を離さないで欲しくて…" },
-{ delay:1200 },
-{ speaker:"me", text:"そのへんはちゃんと考えろ。" },
-{ delay:2000 },
-{ speaker:"other", text:"…でもホントはこういうの好きなんじゃないですか…？" }
-],
-choices: [
-{ label:"そうかもしれない", next:"branch_yes" },
-{ label:"そんなことない", next:"branch_no" }
-]
-},
-
-
-branch_yes: {
-  messages: [
-    { speaker:"me", text:"…正直に言うと、少し…" },
-    { delay:1200 },
-    { speaker:"me", text:"こういうスリル、嫌いじゃないかしれない。" }
-  ],
-  choices: [
-    { label:"次へ", next:"true_a_spice" }
-  ]
-},
-
-
-branch_no: {
-  messages: [
-    { speaker:"me", text:"バレたら終わりだし、ヒヤヒヤするよ" },
-    { delay:2000 },
-    { speaker:"other", text:"そう…ですか…" }
-  ],
-  choices: [
-    { label:"次へ", next:"true_b_route" }
-  ]
-},
-
-
-
-
-true_a_spice: {
-  messages: [
-    { system: true, text:"数日後・仕事中" },
-    { delay:1000 },
-    { speaker:"me", text:"（会議暇だな）" },
-    { delay:1500 },
-    { speaker:"me", text:"（スマホ…？）" },
-    { delay:1200 },
-    { speaker:"other", text:"お仕事中ですよね？" },
-    { delay:1200 },
-    { speaker:"other", text:"邪魔してごめんなさい。" },
-    { delay:1500 },
-    { speaker:"other", text:"でも、ちょっとだけ…" },
-    { delay:1500 },
-    { speaker:"other", text:"これ見て、元気出してください。" },
-    { delay:2500 },
-
-    { image: "test.jpg" },
-  
-	{ delay:1200 },		  
-    { speaker:"me", text:"……お前、何送ってきてるんだ。" },
-    { delay:1500 },
-    { speaker:"other", text:"え…ダメでした？" },
-    { delay:1200 },
-    { speaker:"other", text:"ちょっと頑張ったんですけど…" },
-    { delay:1500 },
-    { speaker:"other", text:"こういうの、好きかなって…" },
-    { delay:1500 },
-    { speaker:"me", text:"場所考えろ…" },
-    { delay:1200 },
-    { speaker:"other", text:"ふふ…" },
-    { delay:1200 },
-    { speaker:"other", text:"でも、ちゃんと見てくれたんですよね？" }
-  ],
-  choices: [
-    { label:"後で話す", next:"true_a_after_work" },
-    { label:"今すぐ返信する", next:"true_a_risky_reply" }
-  ]
-},
-
-true_a_risky_reply: {
-  messages: [
-    { speaker:"me", text:"今仕事中だぞ…" },
-    { delay:1200 },
-    { speaker:"other", text:"分かってます。" },
-    { delay:1200 },
-    { speaker:"other", text:"だから送ったんです。" },
-    { delay:1500 },
-    { speaker:"other", text:"少しは、意識してくれるかなって…" }
-  ],
-  choices: [
-    { label:"続く", next:"true_a_after_work" }
-  ]
-},
-
-true_a_after_work: {
-  messages: [
-    { system: true, text:"仕事終わり" },
-    { delay:1000 },
-    { speaker:"me", text:"さっきの、どういうつもりだ。" },
-    { delay:1500 },
-    { speaker:"other", text:"えっと…" },
-    { delay:1200 },
-    { speaker:"other", text:"その…" },
-    { delay:1500 },
-    { speaker:"other", text:"あなたにだけ、見てほしくて…" },
-    { delay:1500 },
-    { speaker:"other", text:"ダメ、でしたか？" }
-  ],
-  choices: [
-    { label:"悪くない", next:"true_a_deepen" },
-    { label:"やりすぎだ", next:"true_a_control" }
-  ]
-},
-
-
-true_a_deepen: {
-  messages: [
-    { speaker:"me", text:"悪くない。" },
-    { delay:1500 },
-    { speaker:"other", text:"……ほんとですか？" },
-    { delay:1200 },
-    { speaker:"other", text:"よかった…" },
-    { delay:1500 },
-    { speaker:"other", text:"少しだけ、勇気出したので…" }
-  ],
-  choices: [
-    { label:"続く", next:"true_a_spice2" }
-  ]
-},
-
-true_a_spice2: {
-  messages: [
-    { system: true, text:"数日後" },
-    { delay:1000 },
-    { speaker:"other", text:"今、大丈夫ですか？" },
-    { delay:1200 },
-    { speaker:"me", text:"どうした。" },
-    { delay:1200 },
-    { speaker:"other", text:"この前の続き、です。" },
-    { delay:1500 },
-    { speaker:"other", text:"…また、送ってもいいですか？" }
-  ],
-  choices: [
-    { label:"見る", next:"true_a_spice2_react" }
-  ]
-},
-
-true_a_spice2_react: {
-  messages: [
-    { speaker:"me", text:"……お前、エスカレートしてないか。" },
-    { delay:1500 },
-    { speaker:"other", text:"そう、見えます？" },
-    { delay:1200 },
-    { speaker:"other", text:"でも…" },
-    { delay:1200 },
-    { speaker:"other", text:"あなたが許してくれたから…" },
-    { delay:1500 },
-    { speaker:"other", text:"少しくらい、いいかなって…" },
-    { delay:1500 },
-    { speaker:"me", text:"場所考えろって言っただろ…" },
-    { delay:1200 },
-    { speaker:"other", text:"ふふ…" },
-    { delay:1200 },
-    { speaker:"other", text:"今、どこにいますか？" }
-  ],
-  choices: [
-    { label:"仕事中だ", next:"true_a_command" }
-  ]
-},
-
-true_a_command: {
-  messages: [
-    { speaker:"me", text:"仕事中だ。" },
-    { delay:1200 },
-    { speaker:"other", text:"……そうですか。" },
-    { delay:1500 },
-    { speaker:"other", text:"じゃあ…" },
-    { delay:1500 },
-    { speaker:"other", text:"少しだけ、抜けられません？" },
-    { delay:1500 },
-    { speaker:"me", text:"無理に決まってるだろ。" },
-    { delay:1200 },
-    { speaker:"other", text:"本当に、無理ですか？" },
-    { delay:1500 },
-    { speaker:"other", text:"……トイレくらいなら、行けますよね？" }
-  ],
-  choices: [
-    { label:"……行く", next:"true_a_follow" },
-    { label:"…行かない", next:"true_a_ignore" }
-  ]
-},
-
-true_a_follow: {
-  messages: [
-    { speaker:"me", text:"……トイレに入ったぞ…" },
-    { delay:1500 },
-    { speaker:"other", text:"ふふ…" },
-    { delay:1200 },
-    { speaker:"other", text:"ちゃんと、言うこと聞いてくれるんですね。" },
-    { delay:1500 },
-    { speaker:"other", text:"そういうところ…" },
-    { delay:1200 },
-    { speaker:"other", text:"好きですよ。" },
-    { delay:1200 },
-    { speaker:"me", text:"それでどうしてトイレなんだ？" },
-    { delay:1200 },
-    { speaker:"other", text:"さっきの私の写真見たんですよね？" },
-    { delay:500 },
-    { speaker:"other", text:"ムラムラしてるんじゃないですか？" },
-    { delay:500 },
-    { speaker:"other", text:"だから今、そこでオナニーして下さい" },
-    { delay:500 },
-    { speaker:"me", text:"お前、本気か？" },
-    { delay:500 },
-    { speaker:"other", text:"勿論です。ムラムラさせたままじゃ可哀想だから" },
-	{ delay:500 },
-    { speaker:"other", text:"責任取らせて下さい" },
-	{ delay:500 },
-	{ speaker:"other", text:"それとも、このまま仕事に戻って我慢しますか？" },
-	{ speaker:"me", text:"…" },
-	{ delay:500 },
-	{ speaker:"other", text:"…しょうがない人ですね♡" },
-	{ delay:2000 },
-	{ speaker:"other", text:"チンコ出してシコれ" },
-	{ delay:2000 },
-	{ speaker:"other", text:"既読のままってことはもしかしてホントにシコってます？" },
-	
-  ],
-  choices: [
-    { label:"続く", next:"true_a_next_scene3" }
-  ]
-},
-
-true_a_ignore: {
-  messages: [
-    { speaker:"me", text:"無理だ。" },
-    { delay:1500 },
-    { speaker:"other", text:"……そっか。" },
-    { delay:1500 },
-    { speaker:"other", text:"じゃあ、後でいいです。" },
-    { delay:1500 },
-    { speaker:"other", text:"その代わり…" },
-    { delay:1200 },
-    { speaker:"other", text:"ちゃんと、続き付き合ってくださいね？" }
-  ],
-  choices: [
-    { label:"続く", next:"true_a_next_scene3" }
-  ]
-},
-
-
-ntr_1: {
-messages: [
-　{ delay:3000 },
-　{ system: true, text: "1ヶ月後" },
-  { speaker:"other", text:"実は最近、本好きで知り合った人がいて…" },
-  { delay:1000 },
-  { speaker:"me", text:"……そうなんだな" }
-],
-choices: [
-  { label:"気にしないで流す", next:"ntr_2", add:0 },
-  { label:"少し気になる", next:"ntr_2", add:1 }
-]
-},
-
-
-ntr_2: {
-messages: [
-  { speaker:"other", text:"サイン会で声をかけてくれた方なんです。" },
-  { delay:1000 },
-  { speaker:"me", text:"へぇ……どんな人なんだ？" }
-],
-choices: [
-  { label:"深くは聞かない", next:"ntr_3", add:0 },
-  { label:"少し踏み込む", next:"ntr_3", add:1 }
-]
-},
-
-
-ntr_3: {
-messages: [
-  { speaker:"other", text:"最近はメッセージも来るようになって…" },
-  { delay:1000 },
-  { speaker:"me", text:"頻繁にやり取りしてるのか？" }
-],
-choices: [
-  { label:"普通に受け取る", next:"ntr_4", add:0 },
-  { label:"少し引っかかる", next:"ntr_4", add:1 }
-]
-},
-
-
-ntr_4: {
-messages: [
-  { speaker:"other", text:"正直、ちょっと考えちゃってて…" },
-  { delay:1000 },
-  { speaker:"me", text:"……そういうの、気になるんだな" }
-],
-choices: [
-  { label:"気にしない", next:"ntr_decide", add:0 },
-  { label:"引っかかる", next:"ntr_decide", add:1 }
-]
-},
-
-
-ntr_decide: {
-messages: [
-  { speaker:"other", text:"変ですよね、こんなの…" },
-  { delay:1200 },
-  { speaker:"me", text:"……別にいいんじゃないか" }
-],
-choices: [
-  { label:"次へ", next:"ntr_result" }
-]
-},
-
-
-ntr_result: {
-messages: [],
-choices: [],
-init: function(){
-  if(ntrAffinity >= 2){
-    loadScene("ntr_end");
-  } else {
-    loadScene("ntr_start");
-  }
-}
-},
-
-ntr_end: {
-messages: [
-{ speaker:"other", text:"最近、その人と話す時間が増えて…" },
-{ delay:1200 },
-{ speaker:"other", text:"あなたとは違って、ちゃんと向き合ってくれるんです。" }
-],
-choices: []
-},
-
-bad_end: {
-  messages: [
-    { speaker:"other", text:"……やっぱり、こういうのは良くないですよ。" },
-    { delay:1200 },
-    { speaker:"other", text:"プロデューサーとアイドルの関係のままでいましょう。" },
-    { delay:1500 },
-    { speaker:"other", text:"お疲れ様でした。" }
-  ],
-  choices: []
-}
-
+// セリフ
+const DIALOGUES = {
+  win:  ["「……っ、む。」","なんで負けたの、俺。","偶然だから。次は負けない。","……見るな。","もう、笑わないでよ……"],
+  lose: ["「へぇ。そうなんだ。」","……どうぞ？","別に、動揺してないし。","まあ、そうなるよね。","……続けるの？","……これで終わり？"],
+  draw: ["「あいこか。」","もう一回。","……ふーん。","奇遇だね。","どっちも引かないの？","……ずっとこのまま？"],
 };
 
-let current = "start";
+const PLAYER_LOSE_SERIF = [
+  "「……ふぅん。いいんじゃない。」",
+  "「見てないから。……少しだけ見てるけど。」",
+  "「なんか、似合ってるじゃん。」",
+  "「……止めてほしいなら言えばいい。言わないけど。」",
+  "「……全部、俺のせい？」",
+  "「……もう、終わりだよ。」",
+];
 
-function renderMessage(msg){
-  const div = document.createElement("div");
+const ENDING_DIALOGUE = {
+  win: [
+    { me: false, speaker:"？？？", line:"「……わかってる。」" },
+    { me: false, speaker:"？？？", line:"「……満足した？」" },
+    { me: true,  speaker:"あなた", line:"「うん。」" },
+    { me: false, speaker:"？？？", line:"「……次は負けない。」" },
+  ],
+  lose: [
+    { me: false, speaker:"？？？", line:"「……終わったね。」" },
+    { me: true,  speaker:"あなた", line:"「……うん。」" },
+    { me: false, speaker:"？？？", line:"「次は、ちゃんとやれば？」" },
+    { me: true,  speaker:"あなた", line:"「……またやるの？」" },
+    { me: false, speaker:"？？？", line:"「……どうしようかな。」" },
+  ],
+};
 
-  // アイコン付き
-  if(msg.icon){
-    const wrap = document.createElement("div");
-    wrap.style.display = "flex";
-    wrap.style.alignItems = "flex-end";
-    wrap.style.gap = "8px";
-
-    const icon = document.createElement("img");
-    icon.src = msg.icon;
-    icon.style.width = "36px";
-    icon.style.height = "36px";
-    icon.style.borderRadius = "50%";
-
-// 👇 これを追加
-icon.style.objectFit = "cover";
-
-    const bubble = document.createElement("div");
-    bubble.className = "message " + (msg.speaker === "me" ? "me" : "other");
-    bubble.textContent = msg.text;
-
-    if(msg.speaker === "me"){
-      wrap.style.flexDirection = "row-reverse";
-    }
-
-    wrap.appendChild(icon);
-    wrap.appendChild(bubble);
-    chat.appendChild(wrap);
-  }
-
-  // 画像
-  else if(msg.image){
-    const img = document.createElement("img");
-    img.src = msg.image;
-    img.style.maxWidth = "70%";
-    img.style.borderRadius = "10px";
-    img.style.margin = "8px 0";
-
-    div.appendChild(img);
-    div.style.alignSelf = (msg.speaker === "me") ? "flex-end" : "flex-start";
-    chat.appendChild(div);
-  }
-
-  // システム
-  else if(msg.system){
-    div.className = "message system";
-    div.textContent = msg.text;
-    chat.appendChild(div);
-  }
-
-  // 通常
-  else {
-    div.className = "message " + (msg.speaker === "me" ? "me" : "other");
-    div.textContent = msg.text;
-    chat.appendChild(div);
-  }
-
-  chat.scrollTop = chat.scrollHeight;
+// ===== 勝敗判定 =====
+function judge(p, e) {
+  if (p === e) return "draw";
+  if ((p==="gu"&&e==="choki")||(p==="choki"&&e==="pa")||(p==="pa"&&e==="gu")) return "win";
+  return "lose";
 }
 
-  // システム
+// ===== 状態 =====
+let state = { playerLoses:0, enemyLoses:0, round:1, busy:false };
 
+// ===== DOM =====
+const $  = id => document.getElementById(id);
+const enemyImg     = $("enemy-img");
+const enemySpeech  = $("enemy-speech");
+const resultText   = $("result-text");
+const handsDisplay = $("hands-display");
+const playerHands  = $("player-hearts-wrap");
+const enemyHands   = $("enemy-hearts-wrap");
+const roundLabel   = $("round-label");
 
-async function playMessages(messages){
-  for(const item of messages){
-    if(item.delay){
-      await new Promise(r => setTimeout(r, item.delay));
+// ===== 画面切り替え =====
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(id).classList.add("active");
+}
+
+// ===== ゲーム開始 =====
+function startGame() {
+  state = { playerLoses:0, enemyLoses:0, round:1, busy:false };
+  updateHearts();
+  updateEnemyImg();
+  updateRound();
+  enemySpeech.textContent = "「……何？　やる気なの？」";
+  clearResult();
+  enableButtons(true);
+  showScreen("screen-game");
+}
+
+// ===== ハート更新 =====
+function updateHearts() {
+  playerHands.innerHTML = "";
+  enemyHands.innerHTML  = "";
+  for (let i = 0; i < PLAYER_MAX_LOSES; i++) {
+    const s = document.createElement("span");
+    s.className = "heart" + (i < state.playerLoses ? " lost" : "");
+    s.textContent = "♥";
+    playerHands.appendChild(s);
+  }
+  for (let i = 0; i < ENEMY_MAX_LOSES; i++) {
+    const s = document.createElement("span");
+    s.className = "heart" + (i < state.enemyLoses ? " lost" : "");
+    s.textContent = "♥";
+    enemyHands.appendChild(s);
+  }
+}
+
+// ===== 敵画像更新 =====
+function updateEnemyImg() {
+  const lv = Math.min(state.enemyLoses, ENEMY_IMGS.length - 1);
+  enemyImg.style.opacity = "0";
+  setTimeout(() => {
+    enemyImg.src = ENEMY_IMGS[lv];
+    enemyImg.style.opacity = "1";
+  }, 200);
+}
+
+function updateRound() {
+  roundLabel.textContent = "ROUND " + state.round;
+}
+
+function clearResult() {
+  resultText.className = "result-text";
+  resultText.textContent = "";
+  handsDisplay.className = "hands-display";
+  $("player-hand-show").src = "";
+  $("enemy-hand-show").src  = "";
+}
+
+function enableButtons(flag) {
+  ["btn-gu","btn-choki","btn-pa"].forEach(id => $(id).disabled = !flag);
+  state.busy = !flag;
+}
+
+// ===== じゃんけん =====
+function play(playerKey) {
+  if (state.busy) return;
+  enableButtons(false);
+
+  const enemyKey = HAND_KEYS[Math.floor(Math.random() * 3)];
+  const result   = judge(playerKey, enemyKey);
+
+  // 手を表示
+  $("player-hand-show").src = HAND_IMGS[playerKey];
+  $("enemy-hand-show").src  = HAND_IMGS[enemyKey];
+  handsDisplay.className = "hands-display show";
+
+  setTimeout(() => {
+    // 結果テキスト
+    if (result === "win") {
+      resultText.textContent = "勝 ち！";
+      resultText.className = "result-text show win";
+    } else if (result === "lose") {
+      resultText.textContent = "負 け…";
+      resultText.className = "result-text show lose";
     } else {
-      renderMessage(item);
+      resultText.textContent = "あいこ";
+      resultText.className = "result-text show draw";
     }
-  }
-  }
-  
-function showChoices(choices){
-  choicesEl.innerHTML = "";
 
-  choices.forEach(c=>{
-    const btn = document.createElement("button");
-    btn.className = "choice";
-    btn.textContent = c.label;
+    // セリフ
+    const pool = DIALOGUES[result];
+    const idx  = Math.min(state.playerLoses + state.enemyLoses, pool.length - 1);
+    enemySpeech.textContent = "「" + pool[idx].replace(/「|」/g,"") + "」";
 
-    btn.onclick = async ()=>{
-      // ★ここでスコア加算（完全OK）
-      if(typeof c.add === "number"){
-        ntrAffinity += c.add;
+    setTimeout(() => {
+      if (result === "win")       handleEnemyLose();
+      else if (result === "lose") handlePlayerLose();
+      else {
+        state.round++;
+        updateRound();
+        enableButtons(true);
       }
+    }, 900);
+  }, 400);
+}
 
-      choicesEl.innerHTML = "";
-      // ★ここ追加（主人公の返しを挿入）
-      if(c.playerText){
-        renderMessage({
-          speaker:"me",
-          text: c.playerText
-        });
+// ===== 相手が負けた =====
+function handleEnemyLose() {
+  state.enemyLoses++;
+  updateHearts();
 
-        await new Promise(r => setTimeout(r, 600));
-      }
+  // フラッシュ
+  const ov = $("strip-overlay");
+  ov.classList.add("flash");
+  setTimeout(() => ov.classList.remove("flash"), 550);
 
-      loadScene(c.next);
-    };
+  setTimeout(() => {
+    updateEnemyImg();
+    if (state.enemyLoses >= ENEMY_MAX_LOSES) {
+      setTimeout(() => showEnding("win"), 700);
+    } else {
+      state.round++;
+      updateRound();
+      enableButtons(true);
+    }
+  }, 550);
+}
 
-    choicesEl.appendChild(btn);
+// ===== プレイヤーが負けた =====
+function handlePlayerLose() {
+  state.playerLoses++;
+  updateHearts();
+
+  // シェイク
+  const colE = $("col-enemy");
+  colE.classList.add("shake");
+  setTimeout(() => colE.classList.remove("shake"), 460);
+
+  setTimeout(() => showLoseModal(), 450);
+}
+
+// ===== 負けモーダル =====
+function showLoseModal() {
+  const lv  = state.playerLoses;
+  const src = PLAYER_LOSE_IMGS[lv - 1];
+  const img = $("player-img");
+  img.src = src;
+  $("modal-serif").textContent = PLAYER_LOSE_SERIF[lv - 1] || "「……」";
+  $("modal-lose").classList.add("active");
+}
+
+function closeModal() {
+  $("modal-lose").classList.remove("active");
+  if (state.playerLoses >= PLAYER_MAX_LOSES) {
+    setTimeout(() => showEnding("lose"), 300);
+  } else {
+    state.round++;
+    updateRound();
+    enableButtons(true);
+  }
+}
+
+// ===== エンディング =====
+function showEnding(type) {
+  showScreen("screen-ending");
+
+  const title = $("ending-title");
+  if (type === "win") {
+    title.textContent = "— あ な た の 勝 ち —";
+    title.className = "player-win";
+    $("ending-img").src = "enemy_ending.WEBP";
+  } else {
+    title.textContent = "— あ な た の 負 け —";
+    title.className = "player-lose";
+    $("ending-img").src = "player_ending.WEBP";
+  }
+
+  const log   = $("ending-dialogue");
+  log.innerHTML = "";
+  const lines = ENDING_DIALOGUE[type];
+  lines.forEach((d, i) => {
+    const div = document.createElement("div");
+    div.className = "dlg-line" + (d.me ? " me" : "");
+    div.innerHTML = `<span class="dlg-speaker">${d.speaker}</span>${d.line}`;
+    log.appendChild(div);
+    setTimeout(() => {
+      div.classList.add("show");
+      log.scrollTop = log.scrollHeight;
+    }, 500 + i * 650);
   });
 }
-  
-  let isPlaying = false;
 
-async function loadScene(key){
-  if(isPlaying) return;
-  isPlaying = true;
+// ===== リセット =====
+function resetGame() {
+  showScreen("screen-title");
+}
 
-  current = key;
-  const scene = scenario[key];
-
-  if(!scene) return;
-
-  await playMessages(scene.messages);
-  showChoices(scene.choices || []);
-
-  isPlaying = false;
-};
-
-loadScene("start");
+// ===== 起動 =====
+showScreen("screen-title");
 </script>
 
 </body>
